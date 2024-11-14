@@ -7,7 +7,7 @@ Install:
 FRONTEND_URL=your_frontend_url_here`
 3. Edit the servers array in the frontend code to add your Minecraft servers
 
-Docker:
+Install using Docker:
 1. `docker pull idiosync000/mc-status-page`
 2. Pass through port 80 and /app/public/
 3. Place exited index.html and images in `public` folder passed through on host
