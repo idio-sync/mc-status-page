@@ -30,7 +30,7 @@ jobs:
       - name: Build Docker image
         id: build_image
         run: |
-          docker build "$GITHUB_WORKSPACE" -t ${{ secrets.DOCKERHUB_USER }}/mc-status-page:$GITHUB_SHA --label dockerfile-path="Dockerfile"
+          docker build "$GITHUB_WORKSPACE" -t ${{ secrets.DOCKERHUB_USER }}/mc-status-page:latest --label dockerfile-path="Dockerfile"
       - name: Push Docker image
         run: docker push ${{ secrets.DOCKERHUB_USER }}/mc-status-page:$GITHUB_SHA
 
