@@ -2,4 +2,4 @@ This is a simple Minecraft server status page that can show a number of servers 
 
 `docker pull idiosync000/mc-status-page`
 
-![ServerStatus](https://raw.githubusercontent.com/idio-sync/mc-status-page/refs/heads/main/mcstatus.png)
+![ServerStatus](https://raw.githubusercontent.com/idio-sync/mc-status-page/refs/heads/main/screenshot.png)
