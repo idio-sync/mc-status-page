@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+	<link rel="manifest" href="/site.webmanifest">
+	<meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minecraft Server Info</title>
     <style>
@@ -29,7 +33,7 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)),
+            background: linear-gradient(rgba(0, 0, 0, 0.0), rgba(0, 0, 0, 0.2)),
                         url('/images/backgrounds/background.jpg');
             background-size: cover;
             background-position: center;
@@ -130,8 +134,18 @@
             background: rgba(0, 0, 0, 0.2);
             padding: 5px 8px;
             border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            user-select: all;
         }
 
+        .domain:hover {
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .domain:active {
+            background: rgba(0, 0, 0, 0.6);
+        }
 
         .player-count {
             color: #4CAF50;
@@ -269,6 +283,100 @@
         .fullscreen-map:hover {
             background: #1976D2;
         }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+                gap: 15px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+                margin: 10px 0;
+            }
+
+            .server-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .server-card {
+                padding: 15px;
+                margin: 0 auto;
+                width: 100%;
+                max-width: 500px;
+            }
+
+            .server-image {
+                height: 120px;
+            }
+
+            .header-row h2 {
+                font-size: 1.2em;
+            }
+
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .info-item {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .domain {
+                font-size: 0.9em;
+                word-break: break-all;
+            }
+
+            .map-links {
+                flex-wrap: wrap;
+            }
+
+            .map-link {
+                flex: 1;
+                text-align: center;
+                min-width: 100px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .server-card {
+                padding: 12px;
+            }
+
+            .map-container {
+                padding: 10px;
+            }
+
+            .map-header {
+                flex-direction: column;
+                height: auto;
+                gap: 10px;
+            }
+
+            .map-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .map-button {
+                padding: 8px 12px;
+                font-size: 0.9em;
+            }
+
+            .server-status {
+                font-size: 12px;
+                padding: 4px 8px;
+            }
+
+            .info-row {
+                font-size: 0.9em;
+            }
+        }
     </style>
 </head>
 <body>
@@ -292,24 +400,23 @@
         </div>
     </div>
 </body>
-</html>
 <script>
     const servers = [
         {
-            name: "Survival",
+            name: "Example",
             domain: "mc.example.com",
             port: 25565,
-            image: "/images/servers/JungleIsland.jpg",
+            image: "/images/servers/example.jpg",
             maps: {
                 dynmap: "https://mc.example.com/maps/survival/",
                 bluemap: "https://mc.example.com/maps/survival-3d/"
             }
         },
         {
-            name: "Survival 2",
+            name: "Example 2",
             domain: "mc2.example.com",
             port: 25565,
-            image: "/images/servers/DarkForest.jpg",
+            image: "/images/servers/example2.jpg",
             maps: {
                 dynmap: "https://mc.example.com/maps/survival2/",
                 bluemap: "https://mc.example.com/maps/survival2-3d/"
@@ -317,25 +424,42 @@
         }
     ];
 
+    # You can keep adding server cards past these two
+    
+    function copyDomain(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            showCopyFeedback(text);
+        } catch (err) {
+            console.error('Failed to copy text:', err);
+        }
+        
+        document.body.removeChild(textarea);
+    }
+
+    function showCopyFeedback(domain) {
+        const domainElements = document.querySelectorAll('.domain');
+        const clickedElement = Array.from(domainElements)
+            .find(el => el.textContent === domain);
+        
+        if (clickedElement) {
+            const originalText = clickedElement.textContent;
+            clickedElement.textContent = 'Copied!';
+            setTimeout(() => {
+                clickedElement.textContent = originalText;
+            }, 1000);
+        }
+    }
+
     async function checkServerStatus(domain, port) {
         try {
             const response = await fetch(`/api/status?server=${domain}&port=${port}`);
             const data = await response.json();
-    
-            // Convert uptime to readable format if it comes as seconds or milliseconds
-            let uptimeDisplay = 'Unknown';
-            if (data.uptime) {
-                // Assuming data.uptime comes in seconds
-                const days = Math.floor(data.uptime / 86400);
-                const hours = Math.floor((data.uptime % 86400) / 3600);
-                const minutes = Math.floor((data.uptime % 3600) / 60);
-                
-                uptimeDisplay = '';
-                if (days > 0) uptimeDisplay += `${days}d `;
-                if (hours > 0) uptimeDisplay += `${hours}h `;
-                if (minutes > 0) uptimeDisplay += `${minutes}m`;
-                if (uptimeDisplay === '') uptimeDisplay = 'Just started';
-            }
     
             return {
                 online: true,
@@ -343,8 +467,8 @@
                     online: data.players.online,
                     max: data.players.max
                 },
-                version: data.version?.name || 'Unknown',
-                uptime: uptimeDisplay,
+                version: data.version || 'Unknown',
+                uptime: data.uptime || 'Just started',
                 motd: data.motd
             };
         } catch (error) {
@@ -413,8 +537,8 @@
         document.querySelectorAll('.map-link').forEach(link => {
             link.classList.remove('active');
         });
-    }
-
+	}
+	
     function createServerCard(server, status) {
         const escapedName = server.name.replace(/'/g, "\\'");
         
@@ -432,7 +556,7 @@
                 <div class="info-row">
                     <div class="info-item">
                         <span class="info-label">Domain:</span>
-                        <span class="domain">${server.domain}</span>
+                        <span class="domain" onclick="copyDomain('${server.domain}')">${server.domain}</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">MOTD:</span>
@@ -479,3 +603,4 @@
     // Update every 60 seconds
     setInterval(updateServerStatuses, 60000);
 </script>
+</html>
