@@ -424,7 +424,7 @@
         }
     ];
 
-    function copyDomain(text) {
+	function copyDomain(text) {
         const textarea = document.createElement('textarea');
         textarea.value = text;
         document.body.appendChild(textarea);
@@ -459,6 +459,17 @@
             const response = await fetch(`/api/status?server=${domain}&port=${port}`);
             const data = await response.json();
     
+            // Check if the response indicates an error or offline status
+            if (!response.ok || data.error || data.online === false) {
+                return {
+                    online: false,
+                    players: { online: 0, max: 0 },
+                    version: null,
+                    uptime: null,
+                    motd: data.motd || "Server is offline"
+                };
+            }
+
             return {
                 online: true,
                 players: {
@@ -466,7 +477,7 @@
                     max: data.players.max
                 },
                 version: data.version || 'Unknown',
-                uptime: data.uptime || 'Just started',
+                uptime: data.uptime || 'Unknown',
                 motd: data.motd
             };
         } catch (error) {
@@ -535,8 +546,8 @@
         document.querySelectorAll('.map-link').forEach(link => {
             link.classList.remove('active');
         });
-	}
-	
+    }
+    
     function createServerCard(server, status) {
         const escapedName = server.name.replace(/'/g, "\\'");
         
@@ -564,7 +575,7 @@
     
                 <div class="info-row">
                     <span class="player-count">${status.online ? `Players: ${status.players.online}/${status.players.max}` : 'Players: 0/0'}</span>
-                    <span class="uptime">${status.online ? `Uptime: ${status.uptime || '0h'}` : 'Offline'}</span>
+                    <span class="uptime">${status.online ? (status.uptime || 'Unknown') : 'Offline'}</span>
                     <span class="version">${status.version || 'Version Unknown'}</span>
                 </div>
     
@@ -601,4 +612,3 @@
     // Update every 60 seconds
     setInterval(updateServerStatuses, 60000);
 </script>
-</html>
