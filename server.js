@@ -1,82 +1,94 @@
-// Required dependencies
 const express = require('express');
 const util = require('minecraft-server-util');
 const cors = require('cors');
+const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Enable CORS
-app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['GET']
-}));
-
-// Enhanced cache to store both status and first connection time
 const statusCache = new Map();
-const serverUptimes = new Map();
 const CACHE_DURATION = 30000; // 30 seconds cache
 
-function formatUptime(startTime) {
-    const uptime = Date.now() - startTime;
-    const seconds = Math.floor(uptime / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
+async function getCraftyStatus(uuid) {
+    try {
+        const response = await fetch(`${process.env.CRAFTY_API_URL}/api/v2/servers/server_detail?id=${uuid}`, {
+            headers: {
+                'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Crafty API responded with ${response.status}`);
+        }
 
-    let uptimeString = '';
-    if (days > 0) uptimeString += `${days}d `;
-    if (hours % 24 > 0) uptimeString += `${hours % 24}h `;
-    if (minutes % 60 > 0) uptimeString += `${minutes % 60}m`;
-    if (uptimeString === '') uptimeString = 'Just started';
-
-    return uptimeString;
+        const data = await response.json();
+        return {
+            uptime: data.server.stats.uptime || null,
+            cpu: data.server.stats.cpu || null,
+            memory: {
+                used: data.server.stats.memory_used || null,
+                max: data.server.stats.memory_max || null
+            },
+            worldSize: data.server.stats.world_size || null,
+            autoStart: data.server.auto_start || false,
+            autoStop: data.server.auto_stop || false
+        };
+    } catch (error) {
+        console.error('Failed to fetch Crafty status:', error);
+        return { 
+            uptime: null,
+            cpu: null,
+            memory: { used: null, max: null },
+            worldSize: null,
+            autoStart: false,
+            autoStop: false
+        };
+    }
 }
 
-async function getServerStatus(host, port) {
+async function getServerStatus(host, port, craftyId) {
     const cacheKey = `${host}:${port}`;
     const now = Date.now();
     
-    // Return cached result if available and fresh
     if (statusCache.has(cacheKey)) {
         const cachedResult = statusCache.get(cacheKey);
         if (now - cachedResult.timestamp < CACHE_DURATION) {
-            const status = cachedResult.data;
-            if (status.online && serverUptimes.has(cacheKey)) {
-                status.uptime = formatUptime(serverUptimes.get(cacheKey));
-            }
-            return status;
+            return cachedResult.data;
         }
     }
     
     try {
         // Query the Minecraft server
-        const result = await util.status(host, port || 25565, {
+        const mcData = await util.status(host, port || 25565, {
             timeout: 5000,
-            enableSRV: true // Enables SRV record lookup
+            enableSRV: true
         });
-        
-        // If server is newly online or coming back online, update uptime
-        if (!serverUptimes.has(cacheKey)) {
-            serverUptimes.set(cacheKey, now);
+
+        // Check if version contains "Velocity"
+        if (mcData.version.name.includes('Velocity') || 
+            (mcData.motd.clean && mcData.motd.clean.includes('Velocity'))) {
+            throw new Error('Proxy server detected');
         }
+
+        // Get Crafty status if ID is provided
+        const craftyData = craftyId ? await getCraftyStatus(craftyId) : null;
 
         const status = {
             online: true,
             players: {
-                online: result.players.online,
-                max: result.players.max
+                online: mcData.players.online,
+                max: mcData.players.max
             },
-            motd: result.motd.clean, // Clean MOTD without formatting codes
-            version: result.version.name,
-            latency: result.roundTripLatency,
-            favicon: result.favicon,
+            version: mcData.version.name,
+            motd: mcData.motd.clean,
+            latency: mcData.roundTripLatency,
+            favicon: mcData.favicon,
             timestamp: now,
-            uptime: formatUptime(serverUptimes.get(cacheKey))
+            craftyStats: craftyData
         };
         
-        // Cache the result
         statusCache.set(cacheKey, {
             timestamp: now,
             data: status
@@ -86,20 +98,18 @@ async function getServerStatus(host, port) {
     } catch (error) {
         console.error(`Error querying ${host}:${port}:`, error.message);
         
-        // Clear uptime if server goes offline
-        serverUptimes.delete(cacheKey);
-        
         const offlineStatus = {
             online: false,
             players: { online: 0, max: 0 },
-            motd: 'Server is offline',
             version: 'Unknown',
+            motd: error.message === 'Proxy server detected' ? 
+                  'Offline (Proxy Only)' : 'Server is offline',
+            uptime: null,
             latency: -1,
             timestamp: now,
-            uptime: null
+            craftyStats: null
         };
         
-        // Cache the offline status (but for a shorter duration)
         statusCache.set(cacheKey, {
             timestamp: now,
             data: offlineStatus
@@ -109,9 +119,13 @@ async function getServerStatus(host, port) {
     }
 }
 
-// Main status endpoint
+app.use(cors({
+    origin: process.env.FRONTEND_URL || '*',
+    methods: ['GET']
+}));
+
 app.get('/api/status', async (req, res) => {
-    const { server, port } = req.query;
+    const { server, port, craftyId } = req.query;
     
     if (!server) {
         return res.status(400).json({
@@ -120,7 +134,7 @@ app.get('/api/status', async (req, res) => {
     }
     
     try {
-        const status = await getServerStatus(server, parseInt(port) || 25565);
+        const status = await getServerStatus(server, parseInt(port) || 25565, craftyId);
         res.json(status);
     } catch (error) {
         res.status(500).json({
@@ -130,35 +144,10 @@ app.get('/api/status', async (req, res) => {
     }
 });
 
-// Batch status endpoint for multiple servers
-app.get('/api/batch-status', async (req, res) => {
-    const servers = req.query.servers;
-    
-    if (!servers) {
-        return res.status(400).json({
-            error: 'Servers parameter is required (comma-separated list)'
-        });
-    }
-    
-    const serverList = servers.split(',');
-    const results = {};
-    
-    await Promise.all(
-        serverList.map(async (server) => {
-            const [host, port] = server.split(':');
-            results[server] = await getServerStatus(host, parseInt(port) || 25565);
-        })
-    );
-    
-    res.json(results);
-});
-
-// Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'healthy' });
 });
 
-// Start the server
 app.listen(port, () => {
     console.log(`Minecraft status backend listening on port ${port}`);
 });
