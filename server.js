@@ -13,17 +13,17 @@ const CACHE_DURATION = 30000; // 30 seconds cache
 
 async function getCraftyStatus(uuid) {
     try {
-        // Create agent that ignores SSL certificate issues
         const agent = new https.Agent({
             rejectUnauthorized: false
         });
 
-        const response = await fetch(`${process.env.CRAFTY_API_URL}/api/v2/servers/server_detail?id=${uuid}`, {
+        // Updated endpoint for Crafty 4.x
+        const response = await fetch(`${process.env.CRAFTY_API_URL}/api/v2/server/${uuid}/stats`, {
             headers: {
                 'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
                 'Accept': 'application/json'
             },
-            agent: agent  // Use the agent that ignores SSL validation
+            agent: agent
         });
         
         if (!response.ok) {
@@ -31,16 +31,28 @@ async function getCraftyStatus(uuid) {
         }
 
         const data = await response.json();
-        return {
-            uptime: data.server.stats.uptime || null,
-            cpu: data.server.stats.cpu || null,
-            memory: {
-                used: data.server.stats.memory_used || null,
-                max: data.server.stats.memory_max || null
+        
+        // Get server details for auto start/stop info
+        const serverResponse = await fetch(`${process.env.CRAFTY_API_URL}/api/v2/server/${uuid}`, {
+            headers: {
+                'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
+                'Accept': 'application/json'
             },
-            worldSize: data.server.stats.world_size || null,
-            autoStart: data.server.auto_start || false,
-            autoStop: data.server.auto_stop || false
+            agent: agent
+        });
+
+        const serverData = await serverResponse.json();
+
+        return {
+            uptime: data.stats?.uptime || null,
+            cpu: data.stats?.cpu || null,
+            memory: {
+                used: data.stats?.memory_used || null,
+                max: data.stats?.memory_max || null
+            },
+            worldSize: data.stats?.world_size || null,
+            autoStart: serverData?.server?.auto_start || false,
+            autoStop: serverData?.server?.auto_stop || false
         };
     } catch (error) {
         console.error('Failed to fetch Crafty status:', error);
