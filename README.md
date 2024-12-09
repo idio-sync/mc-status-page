@@ -1,7 +1,7 @@
 This is a simple Minecraft server status page that can show a number of servers and their info via cards, each with buttons for two maps that either display in-page or go fullscreen. Configuration is done via the index.html.
 
 Install:
-1. Install dependacies: `npm install express minecraft-server-util cors dotenv`
+1. Install dependacies: `npm install express minecraft-server-util cors dotenv node-fetch`
 2. Configure your environment variables, create a .env file with: 
 `PORT=3000
 FRONTEND_URL=your_frontend_url_here`
