@@ -403,28 +403,28 @@
 <script>
     const servers = [
         {
-            name: "Example",
-            domain: "mc.example.com",
+            name: "Survival - Jungle Island",
+            domain: "mc.idiosynchronic.com",
             port: 25565,
-            image: "/images/servers/example.jpg",
+            image: "/images/servers/JungleIsland.jpg",
             maps: {
-                dynmap: "https://mc.example.com/maps/survival/",
-                bluemap: "https://mc.example.com/maps/survival-3d/"
+                dynmap: "https://mc.idiosynchronic.com/maps/survival/",
+                bluemap: "https://mc.idiosynchronic.com/maps/survival-3d/"
             }
         },
         {
-            name: "Example 2",
-            domain: "mc2.example.com",
+            name: "Survival 2 - Dark Forest",
+            domain: "mc2.idiosynchronic.com",
             port: 25565,
-            image: "/images/servers/example2.jpg",
+            image: "/images/servers/DarkForest.jpg",
             maps: {
-                dynmap: "https://mc.example.com/maps/survival2/",
-                bluemap: "https://mc.example.com/maps/survival2-3d/"
+                dynmap: "https://mc.idiosynchronic.com/maps/survival2/",
+                bluemap: "https://mc.idiosynchronic.com/maps/survival2-3d/"
             }
         }
     ];
 
-	function copyDomain(text) {
+    function copyDomain(text) {
         const textarea = document.createElement('textarea');
         textarea.value = text;
         document.body.appendChild(textarea);
@@ -455,41 +455,45 @@
     }
 
     async function checkServerStatus(domain, port) {
-        try {
-            const response = await fetch(`/api/status?server=${domain}&port=${port}`);
-            const data = await response.json();
-    
-            // Check if the response indicates an error or offline status
-            if (!response.ok || data.error || data.online === false) {
-                return {
-                    online: false,
-                    players: { online: 0, max: 0 },
-                    version: null,
-                    uptime: null,
-                    motd: data.motd || "Server is offline"
-                };
-            }
+		try {
+			const response = await fetch(`/api/status?server=${domain}&port=${port}`);
+			const data = await response.json();
+		
+			// Check if version contains "Velocity" or if MOTD contains "Velocity"
+			const isVelocityProxy = (data.version && data.version.includes('Velocity')) || 
+								   (data.motd && data.motd.includes('Velocity'));
 
-            return {
-                online: true,
-                players: {
-                    online: data.players.online,
-                    max: data.players.max
-                },
-                version: data.version || 'Unknown',
-                uptime: data.uptime || 'Unknown',
-                motd: data.motd
-            };
-        } catch (error) {
-            return {
-                online: false,
-                players: { online: 0, max: 0 },
-                version: null,
-                uptime: null,
-                motd: "Failed to connect to status server"
-            };
-        }
-    }
+			// Check for error conditions including Velocity proxy
+			if (!response.ok || data.error || data.online === false || isVelocityProxy) {
+				return {
+					online: false,
+					players: { online: 0, max: 0 },
+					version: null,
+					uptime: null,
+					motd: isVelocityProxy ? "Offline (Proxy Only)" : (data.motd || "Server is offline")
+				};
+			}
+
+			return {
+				online: true,
+				players: {
+					online: data.players.online,
+					max: data.players.max
+				},
+				version: data.version || 'Unknown',
+				uptime: data.uptime || 'Unknown',
+				motd: data.motd
+			};
+		} catch (error) {
+			return {
+				online: false,
+				players: { online: 0, max: 0 },
+				version: null,
+				uptime: null,
+				motd: "Failed to connect to status server"
+			};
+		}
+	}
 
     function toggleFullscreen() {
         const mapContainer = document.getElementById('mapContainer');
