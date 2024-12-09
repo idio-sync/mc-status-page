@@ -17,8 +17,10 @@ async function getCraftyStatus(uuid) {
             rejectUnauthorized: false
         });
 
-        // Updated endpoint for Crafty 4.x
-        const response = await fetch(`${process.env.CRAFTY_API_URL}/api/v2/server/${uuid}/stats`, {
+        const url = `${process.env.CRAFTY_API_URL}/api/v2/server/${uuid}/stats`;
+        console.log('Attempting to fetch Crafty stats from:', url);
+
+        const statsResponse = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
                 'Accept': 'application/json'
@@ -26,33 +28,45 @@ async function getCraftyStatus(uuid) {
             agent: agent
         });
         
-        if (!response.ok) {
-            throw new Error(`Crafty API responded with ${response.status}`);
+        if (!statsResponse.ok) {
+            console.log('Response status:', statsResponse.status);
+            const text = await statsResponse.text();
+            console.log('Response body:', text);
+            throw new Error(`Crafty API responded with ${statsResponse.status}`);
         }
 
-        const data = await response.json();
+        const statsData = await statsResponse.json();
         
-        // Get server details for auto start/stop info
-        const serverResponse = await fetch(`${process.env.CRAFTY_API_URL}/api/v2/server/${uuid}`, {
-            headers: {
-                'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
-                'Accept': 'application/json'
-            },
-            agent: agent
-        });
+        // Convert memory string to bytes for consistent formatting
+        let memUsed = 0;
+        if (statsData.data.mem) {
+            const memString = statsData.data.mem;
+            const value = parseFloat(memString);
+            if (memString.includes('GB')) memUsed = value * 1024 * 1024 * 1024;
+            else if (memString.includes('MB')) memUsed = value * 1024 * 1024;
+            else if (memString.includes('KB')) memUsed = value * 1024;
+        }
 
-        const serverData = await serverResponse.json();
+        // Convert world size string to bytes
+        let worldSize = 0;
+        if (statsData.data.world_size) {
+            const sizeString = statsData.data.world_size;
+            const value = parseFloat(sizeString);
+            if (sizeString.includes('GB')) worldSize = value * 1024 * 1024 * 1024;
+            else if (sizeString.includes('MB')) worldSize = value * 1024 * 1024;
+            else if (sizeString.includes('KB')) worldSize = value * 1024;
+        }
 
         return {
-            uptime: data.stats?.uptime || null,
-            cpu: data.stats?.cpu || null,
+            uptime: statsData.data.started || null,
+            cpu: statsData.data.cpu || null,
             memory: {
-                used: data.stats?.memory_used || null,
-                max: data.stats?.memory_max || null
+                used: memUsed || null,
+                max: statsData.data.mem_percent ? (memUsed / (statsData.data.mem_percent / 100)) : null
             },
-            worldSize: data.stats?.world_size || null,
-            autoStart: serverData?.server?.auto_start || false,
-            autoStop: serverData?.server?.auto_stop || false
+            worldSize: worldSize || null,
+            autoStart: statsData.data.auto_start || false,
+            autoStop: false
         };
     } catch (error) {
         console.error('Failed to fetch Crafty status:', error);
