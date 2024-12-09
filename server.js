@@ -2,6 +2,7 @@ const express = require('express');
 const util = require('minecraft-server-util');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const https = require('https');
 require('dotenv').config();
 
 const app = express();
@@ -12,11 +13,17 @@ const CACHE_DURATION = 30000; // 30 seconds cache
 
 async function getCraftyStatus(uuid) {
     try {
+        // Create agent that ignores SSL certificate issues
+        const agent = new https.Agent({
+            rejectUnauthorized: false
+        });
+
         const response = await fetch(`${process.env.CRAFTY_API_URL}/api/v2/servers/server_detail?id=${uuid}`, {
             headers: {
                 'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
                 'Accept': 'application/json'
-            }
+            },
+            agent: agent  // Use the agent that ignores SSL validation
         });
         
         if (!response.ok) {
@@ -144,9 +151,13 @@ app.get('/api/status', async (req, res) => {
     }
 });
 
+// Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'healthy' });
 });
+
+// Serve static files from the 'public' directory
+app.use(express.static('public'));
 
 app.listen(port, () => {
     console.log(`Minecraft status backend listening on port ${port}`);
