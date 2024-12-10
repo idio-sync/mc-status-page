@@ -17,11 +17,11 @@ async function getCraftyStatus(uuid) {
             rejectUnauthorized: false
         });
 
-        // Try getting the server details first
-        const url = `${process.env.CRAFTY_API_URL}/api/v2/servers/${uuid}`;
-        console.log('Attempting to fetch Crafty stats from:', url);
+        // First get server stats
+        const statsUrl = `${process.env.CRAFTY_API_URL}/api/v2/servers/${uuid}/stats`;
+        console.log('Attempting to fetch Crafty stats from:', statsUrl);
 
-        const statsResponse = await fetch(url, {
+        const statsResponse = await fetch(statsUrl, {
             headers: {
                 'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
                 'Accept': 'application/json'
@@ -30,14 +30,29 @@ async function getCraftyStatus(uuid) {
         });
         
         if (!statsResponse.ok) {
-            console.log('Response status:', statsResponse.status);
+            console.log('Stats response status:', statsResponse.status);
             const text = await statsResponse.text();
-            console.log('Response body:', text);
+            console.log('Stats response body:', text);
             throw new Error(`Crafty API responded with ${statsResponse.status}`);
         }
 
         const statsData = await statsResponse.json();
         console.log('Received stats data:', statsData);
+
+        // Then get server details
+        const detailsUrl = `${process.env.CRAFTY_API_URL}/api/v2/servers/${uuid}`;
+        console.log('Attempting to fetch Crafty details from:', detailsUrl);
+
+        const detailsResponse = await fetch(detailsUrl, {
+            headers: {
+                'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
+                'Accept': 'application/json'
+            },
+            agent: agent
+        });
+
+        const detailsData = await detailsResponse.json();
+        console.log('Received details data:', detailsData);
 
         return {
             uptime: statsData.data?.started || null,
@@ -47,7 +62,7 @@ async function getCraftyStatus(uuid) {
                 max: statsData.data?.mem_percent ? (statsData.data?.mem / (statsData.data?.mem_percent / 100)) : null
             },
             worldSize: statsData.data?.world_size || null,
-            autoStart: statsData.data?.auto_start || false,
+            autoStart: detailsData.data?.auto_start || false,
             autoStop: false
         };
     } catch (error) {
