@@ -481,28 +481,71 @@
 
 <script>
     const servers = [
-        {
-            name: "Example Server",
+        
+		{
+            name: "Example 1",
             domain: "mc.example.com",
             port: 25565,
-            craftyId: "2233e461-90db-4280-affe-4ded100a2248",
-            image: "/images/servers/example.jpg",
+			craftyId:"00000000-0000-0000-0000-000000000000",
+            image: "/images/servers/example1.jpg",
             maps: {
                 dynmap: "https://mc.example.com/maps/survival/",
                 bluemap: "https://mc.example.com/maps/survival-3d/"
             }
+        },
+		{
+            name: "Example 2",
+            domain: "mc2.example.com",
+            port: 25565,
+            craftyId:"00000000-0000-0000-0000-000000000000",
+			image: "/images/servers/example2.jpg",
+            maps: {
+                dynmap: "https://mc.example.com/maps/survival2/",
+                bluemap: "https://mc.example.com/maps/survival2-3d/"
+            }
         }
+        // Add more servers as needed
     ];
 
     function formatSize(bytes) {
-        if (!bytes) return 'Unknown';
+        if (!bytes || bytes === 0) return 'Unknown';
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        if (bytes === 0) return '0 B';
         const i = Math.floor(Math.log(bytes) / Math.log(1024));
         return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
     }
 
-    function copyDomain(text) {
+    function formatUptime(started) {
+        if (!started) return 'Unknown';
+        
+        try {
+            const startTime = new Date(started);
+            const now = new Date();
+            
+            // Make sure it's a valid date
+            if (isNaN(startTime.getTime())) return 'Unknown';
+            
+            const diff = Math.floor((now - startTime) / 1000); // Convert to seconds
+            
+            const days = Math.floor(diff / 86400);
+            const hours = Math.floor((diff % 86400) / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            
+            let uptime = '';
+            if (days > 0) uptime += `${days}d `;
+            if (hours > 0) uptime += `${hours}h `;
+            if (minutes > 0) uptime += `${minutes}m`;
+            
+            // If server just started (less than 1 minute)
+            if (uptime === '') return 'Just started';
+            
+            return uptime;
+        } catch (error) {
+            console.error('Error formatting uptime:', error);
+            return 'Unknown';
+        }
+    }
+
+	function copyDomain(text) {
         const textarea = document.createElement('textarea');
         textarea.value = text;
         document.body.appendChild(textarea);
@@ -549,9 +592,18 @@
         }
     }
 
+    function simplifyVersion(version) {
+        if (!version) return 'Unknown';
+        const match = version.match(/\d+\.\d+\.?\d*/);
+        return match ? match[0] : 'Unknown';
+    }
+
     function createServerCard(server, status) {
         const escapedName = server.name.replace(/'/g, "\\'");
         const craftyStats = status.craftyStats || {};
+        const uptimeDisplay = status.online ? 
+            (craftyStats.uptime ? formatUptime(craftyStats.uptime) : 'Unknown') : 
+            'Offline';
         
         return `
             <div class="server-card">
@@ -577,27 +629,11 @@
     
                 <div class="info-row">
                     <span class="player-count">${status.online ? `Players: ${status.players.online}/${status.players.max}` : 'Players: 0/0'}</span>
-                    <span class="uptime">${status.online ? (craftyStats.uptime || 'Unknown') : 'Offline'}</span>
-                    <span class="version">${status.version || 'Version Unknown'}</span>
+                    <span class="uptime">Uptime: ${uptimeDisplay}</span>
+                    <span class="world-size">Size: ${formatSize(craftyStats.worldSize)}</span>
+                    <span class="version">Version: ${status.version ? simplifyVersion(status.version) : 'Unknown'}</span>
                 </div>
 
-                ${craftyStats.worldSize ? `
-                <div class="info-row">
-                    <span class="world-size">World Size: ${formatSize(craftyStats.worldSize)}</span>
-                </div>
-                ` : ''}
-
-                ${craftyStats.autoStart !== undefined ? `
-                <div class="auto-features">
-                    <span class="auto-feature ${craftyStats.autoStart ? 'enabled' : ''}">
-                        Auto Start: ${craftyStats.autoStart ? 'On' : 'Off'}
-                    </span>
-                    <span class="auto-feature ${craftyStats.autoStop ? 'enabled' : ''}">
-                        Auto Stop: ${craftyStats.autoStop ? 'On' : 'Off'}
-                    </span>
-                </div>
-                ` : ''}
-    
                 <div class="map-links">
                     <span class="map-link" 
                           onclick="showMap(\`${escapedName}\`, \`${server.maps.dynmap}\`, '2D')"
@@ -623,30 +659,45 @@
         let totalMemoryMax = 0;
         let totalWorldSize = 0;
         let serverCount = 0;
-
+    
         for (const server of servers) {
             const status = await checkServerStatus(server.domain, server.port, server.craftyId);
             const cardHTML = createServerCard(server, status);
             serverGrid.innerHTML += cardHTML;
-
+    
             if (status.online && status.craftyStats) {
                 totalCpu += status.craftyStats.cpu || 0;
-                totalMemoryUsed += status.craftyStats.memory?.used || 0;
-                totalMemoryMax += status.craftyStats.memory?.max || 0;
-                totalWorldSize += status.craftyStats.worldSize || 0;
+                if (status.craftyStats.memory) {
+                    if (status.craftyStats.memory.used) totalMemoryUsed += status.craftyStats.memory.used;
+                    if (status.craftyStats.memory.max) totalMemoryMax += status.craftyStats.memory.max;
+                }
+                if (status.craftyStats.worldSize) totalWorldSize += status.craftyStats.worldSize;
                 serverCount++;
             }
         }
-
-        // Update stats panel
+    
+        // Update stats panel with proper checks for valid numbers
         document.getElementById('cpuUsage').textContent = 
-            `${(serverCount > 0 ? totalCpu / serverCount : 0).toFixed(1)}%`;
+            `${(serverCount > 0 ? totalCpu : 0).toFixed(1)}%`;
+        
         document.getElementById('memoryUsage').textContent = 
-            `${formatSize(totalMemoryUsed)} / ${formatSize(totalMemoryMax)}`;
+            serverCount > 0 ? 
+            `${formatSize(totalMemoryUsed)} / ${formatSize(totalMemoryMax)}` : 
+            '0 GB / 0 GB';
+        
         document.getElementById('totalWorldSize').textContent = 
-            formatSize(totalWorldSize);
+            serverCount > 0 ? formatSize(totalWorldSize) : '0 GB';
     }
 
+    function formatSize(bytes) {
+        if (!bytes || isNaN(bytes) || bytes === 0) return 'Unknown';
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+    }
+
+
+    // Map functions remain unchanged
     function toggleFullscreen() {
         const mapContainer = document.getElementById('mapContainer');
         const fullscreenText = document.getElementById('fullscreenText');
