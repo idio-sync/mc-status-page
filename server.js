@@ -51,17 +51,28 @@ async function getCraftyStatus(uuid) {
         const statsData = await statsResponse.json();
         const stats = statsData.data;
 
-        // Parse memory and world size
+        // Parse memory from the string (e.g., "1.6GB")
         const memoryUsed = parseSize(stats.mem);
-        const memoryMax = memoryUsed ? (memoryUsed / (stats.mem_percent / 100)) : null;
+        
+        // Get max memory from execution_command
+        const maxMemoryMatch = stats.server_id.execution_command.match(/-Xmx(\d+)([MG])/);
+        let maxMemory = null;
+        if (maxMemoryMatch) {
+            const value = parseInt(maxMemoryMatch[1]);
+            const unit = maxMemoryMatch[2];
+            maxMemory = unit === 'G' ? 
+                value * 1024 * 1024 * 1024 : 
+                value * 1024 * 1024;
+        }
+
         const worldSize = parseSize(stats.world_size);
 
         return {
-            uptime: stats.started || null,
+            uptime: stats.started,  // Return the raw timestamp for frontend formatting
             cpu: stats.cpu || null,
             memory: {
                 used: memoryUsed,
-                max: memoryMax
+                max: maxMemory
             },
             worldSize: worldSize,
             autoStart: stats.server_id?.auto_start || false,
