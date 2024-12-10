@@ -11,16 +11,31 @@ const port = process.env.PORT || 3000;
 const statusCache = new Map();
 const CACHE_DURATION = 30000; // 30 seconds cache
 
+function parseSize(sizeStr) {
+    if (!sizeStr) return null;
+    
+    const match = sizeStr.match(/^([\d.]+)(GB|MB|KB|B)$/);
+    if (!match) return null;
+
+    const value = parseFloat(match[1]);
+    const unit = match[2];
+    
+    switch(unit) {
+        case 'GB': return value * 1024 * 1024 * 1024;
+        case 'MB': return value * 1024 * 1024;
+        case 'KB': return value * 1024;
+        case 'B': return value;
+        default: return null;
+    }
+}
+
 async function getCraftyStatus(uuid) {
     try {
         const agent = new https.Agent({
             rejectUnauthorized: false
         });
 
-        // First get server stats
         const statsUrl = `${process.env.CRAFTY_API_URL}/api/v2/servers/${uuid}/stats`;
-        console.log('Attempting to fetch Crafty stats from:', statsUrl);
-
         const statsResponse = await fetch(statsUrl, {
             headers: {
                 'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
@@ -30,39 +45,26 @@ async function getCraftyStatus(uuid) {
         });
         
         if (!statsResponse.ok) {
-            console.log('Stats response status:', statsResponse.status);
-            const text = await statsResponse.text();
-            console.log('Stats response body:', text);
             throw new Error(`Crafty API responded with ${statsResponse.status}`);
         }
 
         const statsData = await statsResponse.json();
-        console.log('Received stats data:', statsData);
+        const stats = statsData.data;
 
-        // Then get server details
-        const detailsUrl = `${process.env.CRAFTY_API_URL}/api/v2/servers/${uuid}`;
-        console.log('Attempting to fetch Crafty details from:', detailsUrl);
-
-        const detailsResponse = await fetch(detailsUrl, {
-            headers: {
-                'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
-                'Accept': 'application/json'
-            },
-            agent: agent
-        });
-
-        const detailsData = await detailsResponse.json();
-        console.log('Received details data:', detailsData);
+        // Parse memory and world size
+        const memoryUsed = parseSize(stats.mem);
+        const memoryMax = memoryUsed ? (memoryUsed / (stats.mem_percent / 100)) : null;
+        const worldSize = parseSize(stats.world_size);
 
         return {
-            uptime: statsData.data?.started || null,
-            cpu: statsData.data?.cpu || null,
+            uptime: stats.started || null,
+            cpu: stats.cpu || null,
             memory: {
-                used: statsData.data?.mem || null,
-                max: statsData.data?.mem_percent ? (statsData.data?.mem / (statsData.data?.mem_percent / 100)) : null
+                used: memoryUsed,
+                max: memoryMax
             },
-            worldSize: statsData.data?.world_size || null,
-            autoStart: detailsData.data?.auto_start || false,
+            worldSize: worldSize,
+            autoStart: stats.server_id?.auto_start || false,
             autoStop: false
         };
     } catch (error) {
