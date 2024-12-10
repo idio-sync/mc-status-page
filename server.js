@@ -91,6 +91,35 @@ async function getCraftyStatus(uuid) {
     }
 }
 
+async function getCraftySystemStats() {
+    try {
+        const agent = new https.Agent({
+            rejectUnauthorized: false
+        });
+
+        const url = `${process.env.CRAFTY_API_URL}/api/v2/stats`;
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${process.env.CRAFTY_API_KEY}`,
+                'Accept': 'application/json'
+            },
+            agent: agent
+        });
+
+        if (!response.ok) {
+            throw new Error(`Crafty API responded with ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('System stats:', data);  // Let's see what we get back
+
+        return data;
+    } catch (error) {
+        console.error('Failed to fetch system stats:', error);
+        return null;
+    }
+}
+
 async function getServerStatus(host, port, craftyId) {
     const cacheKey = `${host}:${port}`;
     const now = Date.now();
@@ -190,6 +219,33 @@ app.get('/api/status', async (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'healthy' });
+});
+
+app.get('/api/status', async (req, res) => {
+    const { server, port, craftyId } = req.query;
+    
+    if (!server) {
+        return res.status(400).json({
+            error: 'Server hostname is required'
+        });
+    }
+    
+    try {
+        const [status, systemStats] = await Promise.all([
+            getServerStatus(server, parseInt(port) || 25565, craftyId),
+            getCraftySystemStats()
+        ]);
+
+        res.json({
+            ...status,
+            systemStats
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Failed to query server status',
+            message: error.message
+        });
+    }
 });
 
 // Serve static files from the 'public' directory
