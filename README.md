@@ -3,10 +3,10 @@ This is a simple Minecraft server status page that can show a number of servers 
 Install:
 1. Install dependacies: `npm install express minecraft-server-util cors dotenv node-fetch`
 2. Configure your environment variables, create a .env file with: 
-`PORT=3000
-FRONTEND_URL=your_frontend_url_here
-CRAFTY_API_KEY=crafty_api_here
-CRAFTY_API_URL=crafty_url_here`
+`PORT=3000`
+`FRONTEND_URL=your_frontend_url_here`
+`CRAFTY_API_KEY=crafty_api_here`
+`CRAFTY_API_URL=crafty_url_here`
 4. Edit the servers array in the frontend code to add your Minecraft servers
 
 Install using Docker:
