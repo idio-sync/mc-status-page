@@ -17,7 +17,8 @@ async function getCraftyStatus(uuid) {
             rejectUnauthorized: false
         });
 
-        const url = `${process.env.CRAFTY_API_URL}/api/v2/server/${uuid}/stats`;
+        // Try getting the server details first
+        const url = `${process.env.CRAFTY_API_URL}/api/v2/servers/${uuid}`;
         console.log('Attempting to fetch Crafty stats from:', url);
 
         const statsResponse = await fetch(url, {
@@ -36,36 +37,17 @@ async function getCraftyStatus(uuid) {
         }
 
         const statsData = await statsResponse.json();
-        
-        // Convert memory string to bytes for consistent formatting
-        let memUsed = 0;
-        if (statsData.data.mem) {
-            const memString = statsData.data.mem;
-            const value = parseFloat(memString);
-            if (memString.includes('GB')) memUsed = value * 1024 * 1024 * 1024;
-            else if (memString.includes('MB')) memUsed = value * 1024 * 1024;
-            else if (memString.includes('KB')) memUsed = value * 1024;
-        }
-
-        // Convert world size string to bytes
-        let worldSize = 0;
-        if (statsData.data.world_size) {
-            const sizeString = statsData.data.world_size;
-            const value = parseFloat(sizeString);
-            if (sizeString.includes('GB')) worldSize = value * 1024 * 1024 * 1024;
-            else if (sizeString.includes('MB')) worldSize = value * 1024 * 1024;
-            else if (sizeString.includes('KB')) worldSize = value * 1024;
-        }
+        console.log('Received stats data:', statsData);
 
         return {
-            uptime: statsData.data.started || null,
-            cpu: statsData.data.cpu || null,
+            uptime: statsData.data?.started || null,
+            cpu: statsData.data?.cpu || null,
             memory: {
-                used: memUsed || null,
-                max: statsData.data.mem_percent ? (memUsed / (statsData.data.mem_percent / 100)) : null
+                used: statsData.data?.mem || null,
+                max: statsData.data?.mem_percent ? (statsData.data?.mem / (statsData.data?.mem_percent / 100)) : null
             },
-            worldSize: worldSize || null,
-            autoStart: statsData.data.auto_start || false,
+            worldSize: statsData.data?.world_size || null,
+            autoStart: statsData.data?.auto_start || false,
             autoStop: false
         };
     } catch (error) {
