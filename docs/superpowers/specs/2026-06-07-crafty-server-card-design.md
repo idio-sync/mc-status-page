@@ -35,12 +35,20 @@ the catch (error) returns:
 | `crashed` | `stats.crashed` | `false` |
 | `waitingStart` | `stats.waiting_start` | `false` |
 | `updating` | `stats.updating` | `false` |
-| `version` | `stats.version` | `"Paper 26.1.2"` |
 | `type` | `stats.server_id.type` | `"minecraft-java"` |
 | `icon` | `stats.icon` | base64 PNG string, or `null` |
 
 Error/fallback return uses: `running:false, crashed:false, waitingStart:false,
-updating:false, version:null, type:null, icon:null`.
+updating:false, type:null, icon:null`.
+
+The offline status object also gains `proxyOnly: true` when the ping detected a
+Velocity/proxy response (see §2).
+
+**Note (revised after live verification):** Crafty's `version` field is NOT
+used — live data showed it returns an identical, inaccurate string across
+different servers (e.g. `"Paper 26.1.2"` for a Velocity proxy that runs
+velocity-3.5.0) and `"False"` when stopped. The actual protocol-reported ping
+version is more accurate, so the Version field keeps its existing source.
 
 ## 2. Status badge state machine (frontend)
 
@@ -54,7 +62,14 @@ First match wins:
 | `running` OR ping-`online` | Online | `#4CAF50` (existing) |
 | else | Offline | `#f44336` (existing) |
 
+**Proxy override (highest priority):** if the status is `proxyOnly` (the ping
+hit a Velocity/proxy because the real backend is down), the badge is **Offline**
+and the MOTD stays `"Offline (Proxy Only)"` — Crafty's `running` flag does NOT
+flip it to Online. This preserves the existing "Velocity up, backend down"
+indication (players use the proxy to spin up backends on demand).
+
 Consequences (intended):
+- Proxy-only ping (backend down) → **Offline** + "Offline (Proxy Only)" MOTD.
 - Pingable but not tracked by Crafty → **Online**.
 - Cleanly stopped in Crafty, not pingable → **Offline**.
 - Crashed in Crafty → **Crashed**.
@@ -62,9 +77,8 @@ Consequences (intended):
 
 ## 3. Version field
 
-Use `craftyStats.version` verbatim (e.g. `"Paper 26.1.2"`) when present;
-otherwise fall back to the existing `simplifyVersion(status.version)` from the
-ping. `simplifyVersion` is retained for the fallback path.
+**Unchanged.** Keeps the existing ping-derived `simplifyVersion(status.version)`.
+Crafty's `version` is not used (see note in §1 — it's inaccurate/shared).
 
 ## 4. Type badge
 

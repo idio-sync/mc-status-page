@@ -102,6 +102,44 @@
 
         .online { background: #4CAF50; }
         .offline { background: #f44336; }
+        .crashed { background: #b71c1c; }
+        .updating { background: #2196F3; }
+        .starting { background: #FF9800; }
+
+        /* Server identity: circle icon + name share the header line */
+        .server-identity {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0; /* let the name shrink instead of overflowing */
+        }
+
+        .server-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #333;
+            flex-shrink: 0;
+            background: #151515;
+            image-rendering: pixelated; /* Minecraft icons are pixel art */
+        }
+
+        /* Right side of the header: type badge sits left of the status badge */
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .type-badge {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ccc;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
 
         .info-row {
             display: flex;
@@ -525,7 +563,12 @@
             if (isNaN(startTime.getTime())) return 'Unknown';
             
             const diff = Math.floor((now - startTime) / 1000); // Convert to seconds
-            
+
+            // Guard against a start time in the future (clock/timezone skew on the
+            // Crafty host). Without this, the math below renders nonsense like
+            // "-1d -4h -55m". Tolerate minor skew, flag anything clearly wrong.
+            if (diff < 0) return diff > -120 ? 'Just started' : 'Unknown';
+
             const days = Math.floor(diff / 86400);
             const hours = Math.floor((diff % 86400) / 3600);
             const minutes = Math.floor((diff % 3600) / 60);
@@ -598,21 +641,67 @@
         return match ? match[0] : 'Unknown';
     }
 
+    // The Crafty API is fetched over a self-signed connection, so treat its
+    // fields as untrusted before splicing them into card HTML.
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // Resolve the status badge from the ping + Crafty's managed-state flags.
+    // Priority: proxy-only > crashed > updating > starting > online > offline.
+    function getServerState(status) {
+        const c = status.craftyStats;
+        // Velocity up but real backend down: keep "Offline (Proxy Only)" — never
+        // let Crafty's running flag flip it to Online.
+        if (status.proxyOnly) return { label: 'Offline', cls: 'offline' };
+        if (c) {
+            if (c.crashed) return { label: 'Crashed', cls: 'crashed' };
+            if (c.updating) return { label: 'Updating', cls: 'updating' };
+            if (c.waitingStart) return { label: 'Starting…', cls: 'starting' };
+            if (c.running || status.online) return { label: 'Online', cls: 'online' };
+            return { label: 'Offline', cls: 'offline' };
+        }
+        return status.online
+            ? { label: 'Online', cls: 'online' }
+            : { label: 'Offline', cls: 'offline' };
+    }
+
+    // "minecraft-java" -> "Java", "minecraft-bedrock" -> "Bedrock"
+    function getTypeLabel(type) {
+        if (!type) return null;
+        const t = type.replace(/^minecraft-/, '');
+        return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+
     function createServerCard(server, status) {
         const escapedName = server.name.replace(/'/g, "\\'");
         const craftyStats = status.craftyStats || {};
-        const uptimeDisplay = status.online ? 
-            (craftyStats.uptime ? formatUptime(craftyStats.uptime) : 'Unknown') : 
+        const uptimeDisplay = status.online ?
+            (craftyStats.uptime ? formatUptime(craftyStats.uptime) : 'Unknown') :
             'Offline';
-        
+
+        const state = getServerState(status);
+        const typeLabel = getTypeLabel(craftyStats.type);
+        // Only build the data URL from a strict base64 string so a crafted icon
+        // can't break out of the src attribute.
+        const iconSrc = (craftyStats.icon && /^[A-Za-z0-9+/=]+$/.test(craftyStats.icon))
+            ? `data:image/png;base64,${craftyStats.icon}` : null;
+
         return `
             <div class="server-card">
                 <img src="${server.image}" alt="${escapedName}" class="server-image">
-                
+
                 <div class="header-row">
-                    <h2>${server.name}</h2>
-                    <div class="server-status ${status.online ? 'online' : 'offline'}">
-                        ${status.online ? 'Online' : 'Offline'}
+                    <div class="server-identity">
+                        ${iconSrc ? `<img src="${iconSrc}" alt="" class="server-avatar">` : ''}
+                        <h2>${server.name}</h2>
+                    </div>
+                    <div class="header-status">
+                        ${typeLabel ? `<span class="type-badge">${escapeHtml(typeLabel)}</span>` : ''}
+                        <div class="server-status ${state.cls}">
+                            ${state.label}
+                        </div>
                     </div>
                 </div>
     
