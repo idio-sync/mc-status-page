@@ -8,3 +8,6 @@ npm-debug.log*
 # Environment / secrets (copy .env.example to .env and fill in real values)
 .env
 .env.local
+
+# Server list (copy public/servers.example.json to public/servers.json)
+public/servers.json

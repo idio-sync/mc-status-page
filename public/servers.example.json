@@ -1,0 +1,24 @@
+[
+  {
+    "name": "Example 1",
+    "domain": "mc.example.com",
+    "port": 25565,
+    "craftyId": "00000000-0000-0000-0000-000000000000",
+    "image": "/images/servers/example1.jpg",
+    "maps": {
+      "dynmap": "https://mc.example.com/maps/survival/",
+      "bluemap": "https://mc.example.com/maps/survival-3d/"
+    }
+  },
+  {
+    "name": "Example 2",
+    "domain": "mc2.example.com",
+    "port": 25565,
+    "craftyId": "00000000-0000-0000-0000-000000000000",
+    "image": "/images/servers/example2.jpg",
+    "maps": {
+      "dynmap": "https://mc.example.com/maps/survival2/",
+      "bluemap": "https://mc.example.com/maps/survival2-3d/"
+    }
+  }
+]
