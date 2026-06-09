@@ -690,7 +690,7 @@
             <div class="header-row">
                 <div class="server-identity">
                     <img alt="" class="server-avatar" hidden>
-                    <h2>${server.name}</h2>
+                    <h2>${escapeHtml(server.name)}</h2>
                 </div>
                 <div class="header-status">
                     <span class="type-badge" hidden></span>
@@ -780,7 +780,7 @@
         refs.motd.textContent = status.motd;
 
         // Players.
-        refs.players.textContent = status.online
+        refs.players.textContent = (status.online && status.players)
             ? `Players: ${status.players.online}/${status.players.max}`
             : 'Players: 0/0';
 
