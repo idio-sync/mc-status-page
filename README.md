@@ -1,4 +1,4 @@
-This is a simple Minecraft server status page that can show a number of servers and their info via cards, each with buttons for two maps that either display in-page or go fullscreen. Configuration is done via the index.html. Pulls stats from the minecraft server itself along with the Crafty Controller API.
+This is a simple Minecraft server status page that can show a number of servers and their info via cards, each with buttons for two maps that either display in-page or go fullscreen. Configuration is done via a `servers.json` file (no HTML editing needed). Pulls stats from the minecraft server itself along with the Crafty Controller API.
 
 Install:
 1. Install dependacies: `npm install express minecraft-server-util cors dotenv node-fetch`
@@ -14,6 +14,6 @@ Install:
 Install using Docker:
 1. `docker pull idiosync000/mc-status-page`
 2. Pass through port 80 and /app/public/
-3. Place your `index.html`, `servers.json` (copied from `servers.example.json`), and images in the `public` folder passed through on the host
+3. Place your `servers.json` (copied from `servers.example.json`) and images in the `public` folder passed through on the host (a working `index.html` already ships in the image)
 
 ![ServerStatus](https://raw.githubusercontent.com/idio-sync/mc-status-page/refs/heads/main/screenshot.png)
