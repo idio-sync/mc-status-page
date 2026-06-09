@@ -797,86 +797,41 @@
         refs.version.textContent = `Version: ${status.version ? simplifyVersion(status.version) : 'Unknown'}`;
     }
 
-    function createServerCard(server, status) {
-        const escapedName = server.name.replace(/'/g, "\\'");
-        const craftyStats = status.craftyStats || {};
-        const uptimeDisplay = status.online ?
-            (craftyStats.uptime ? formatUptime(craftyStats.uptime) : 'Unknown') :
-            'Offline';
-
-        const state = getServerState(status);
-        const typeLabel = getTypeLabel(craftyStats.type);
-        // Only build the data URL from a strict base64 string so a crafted icon
-        // can't break out of the src attribute.
-        const iconSrc = (craftyStats.icon && /^[A-Za-z0-9+/=]+$/.test(craftyStats.icon))
-            ? `data:image/png;base64,${craftyStats.icon}` : null;
-
-        return `
-            <div class="server-card">
-                <img src="${server.image}" alt="${escapedName}" class="server-image">
-
-                <div class="header-row">
-                    <div class="server-identity">
-                        ${iconSrc ? `<img src="${iconSrc}" alt="" class="server-avatar">` : ''}
-                        <h2>${server.name}</h2>
-                    </div>
-                    <div class="header-status">
-                        ${typeLabel ? `<span class="type-badge">${escapeHtml(typeLabel)}</span>` : ''}
-                        <div class="server-status ${state.cls}">
-                            ${state.label}
-                        </div>
-                    </div>
-                </div>
-    
-                <div class="info-row">
-                    <div class="info-item">
-                        <span class="info-label">Domain:</span>
-                        <span class="domain" onclick="copyDomain('${server.domain}')">${server.domain}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">MOTD:</span>
-                        <span class="motd">${status.motd}</span>
-                    </div>
-                </div>
-    
-                <div class="info-row">
-                    <span class="player-count">${status.online ? `Players: ${status.players.online}/${status.players.max}` : 'Players: 0/0'}</span>
-                    <span class="uptime">Uptime: ${uptimeDisplay}</span>
-                    <span class="world-size">Size: ${formatSize(craftyStats.worldSize)}</span>
-                    <span class="version">Version: ${status.version ? simplifyVersion(status.version) : 'Unknown'}</span>
-                </div>
-
-                <div class="map-links">
-                    <span class="map-link" 
-                          onclick="showMap(\`${escapedName}\`, \`${server.maps.dynmap}\`, '2D')"
-                          data-url="${server.maps.dynmap}">
-                        2D Map
-                    </span>
-                    <span class="map-link" 
-                          onclick="showMap(\`${escapedName}\`, \`${server.maps.bluemap}\`, '3D')"
-                          data-url="${server.maps.bluemap}">
-                        3D Map
-                    </span>
-                </div>
-            </div>
-        `;
-    }
+    // Built once on first render, then updated in place every cycle.
+    // One entry per configured server: { server, el, refs }.
+    let serverCards = null;
 
     async function updateServerStatuses() {
         const serverGrid = document.getElementById('serverGrid');
-        serverGrid.innerHTML = '';
-        
+
+        // First run only: build every card once and append in a single pass.
+        if (!serverCards) {
+            serverGrid.innerHTML = '';
+            serverCards = servers.map(server => {
+                const built = buildServerCard(server);
+                serverGrid.appendChild(built.el);
+                return { server, el: built.el, refs: built.refs };
+            });
+        }
+
+        // Fetch all servers in parallel (was a sequential await-in-loop).
+        // checkServerStatus never rejects — it returns an offline object on error.
+        const statuses = await Promise.all(
+            serverCards.map(card =>
+                checkServerStatus(card.server.domain, card.server.port, card.server.craftyId))
+        );
+
+        // Patch each card in place — no teardown, no rebuild.
+        serverCards.forEach((card, i) => applyStatus(card.refs, card.server, statuses[i]));
+
+        // Recompute the aggregate stats panel (same math as before).
         let totalCpu = 0;
         let totalMemoryUsed = 0;
         let totalMemoryMax = 0;
         let totalWorldSize = 0;
         let serverCount = 0;
-    
-        for (const server of servers) {
-            const status = await checkServerStatus(server.domain, server.port, server.craftyId);
-            const cardHTML = createServerCard(server, status);
-            serverGrid.innerHTML += cardHTML;
-    
+
+        statuses.forEach(status => {
             if (status.online && status.craftyStats) {
                 totalCpu += status.craftyStats.cpu || 0;
                 if (status.craftyStats.memory) {
@@ -886,18 +841,17 @@
                 if (status.craftyStats.worldSize) totalWorldSize += status.craftyStats.worldSize;
                 serverCount++;
             }
-        }
-    
-        // Update stats panel with proper checks for valid numbers
-        document.getElementById('cpuUsage').textContent = 
+        });
+
+        document.getElementById('cpuUsage').textContent =
             `${(serverCount > 0 ? totalCpu : 0).toFixed(1)}%`;
-        
-        document.getElementById('memoryUsage').textContent = 
-            serverCount > 0 ? 
-            `${formatSize(totalMemoryUsed)} / ${formatSize(totalMemoryMax)}` : 
+
+        document.getElementById('memoryUsage').textContent =
+            serverCount > 0 ?
+            `${formatSize(totalMemoryUsed)} / ${formatSize(totalMemoryMax)}` :
             '0 GB / 0 GB';
-        
-        document.getElementById('totalWorldSize').textContent = 
+
+        document.getElementById('totalWorldSize').textContent =
             serverCount > 0 ? formatSize(totalWorldSize) : '0 GB';
     }
 
