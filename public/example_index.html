@@ -915,13 +915,22 @@
         if (!Array.isArray(data)) throw new Error('servers.json must be a JSON array');
 
         // Keep only entries with the required fields; default the port.
-        return data
+        // Use ?? so an explicit port of 0 is preserved (only absent/null defaults).
+        const valid = data
             .filter(s => {
                 const ok = s && typeof s.name === 'string' && typeof s.domain === 'string';
                 if (!ok) console.warn('Skipping server entry missing name/domain:', s);
                 return ok;
             })
-            .map(s => ({ ...s, port: s.port || 25565 }));
+            .map(s => ({ ...s, port: s.port ?? 25565 }));
+
+        // Entries were present but every one was invalid: clearer than the
+        // empty-config "No servers configured." message in init().
+        if (data.length > 0 && valid.length === 0) {
+            throw new Error('all server entries were skipped — each needs a "name" and "domain" (see the browser console)');
+        }
+
+        return valid;
     }
 
     // Render a single friendly message into the grid instead of a blank page.
