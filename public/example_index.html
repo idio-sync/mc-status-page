@@ -674,6 +674,129 @@
         return t.charAt(0).toUpperCase() + t.slice(1);
     }
 
+    // Build a card's static structure ONCE and return references to the
+    // sub-elements that change each refresh. Static parts (image, name, domain,
+    // map links) are never touched again; dynamic parts are filled by
+    // applyStatus(). Cards persist across refreshes => no flash, no image
+    // reload, and the open-map highlight survives.
+    function buildServerCard(server) {
+        const escapedName = server.name.replace(/'/g, "\\'");
+
+        const el = document.createElement('div');
+        el.className = 'server-card';
+        el.innerHTML = `
+            <img src="${server.image}" alt="${escapedName}" class="server-image">
+
+            <div class="header-row">
+                <div class="server-identity">
+                    <img alt="" class="server-avatar" hidden>
+                    <h2>${server.name}</h2>
+                </div>
+                <div class="header-status">
+                    <span class="type-badge" hidden></span>
+                    <div class="server-status">…</div>
+                </div>
+            </div>
+
+            <div class="info-row">
+                <div class="info-item">
+                    <span class="info-label">Domain:</span>
+                    <span class="domain" onclick="copyDomain('${server.domain}')">${server.domain}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">MOTD:</span>
+                    <span class="motd">Loading…</span>
+                </div>
+            </div>
+
+            <div class="info-row">
+                <span class="player-count">Players: …</span>
+                <span class="uptime">Uptime: …</span>
+                <span class="world-size">Size: …</span>
+                <span class="version">Version: …</span>
+            </div>
+
+            <div class="map-links">
+                <span class="map-link"
+                      onclick="showMap(\`${escapedName}\`, \`${server.maps.dynmap}\`, '2D')"
+                      data-url="${server.maps.dynmap}">
+                    2D Map
+                </span>
+                <span class="map-link"
+                      onclick="showMap(\`${escapedName}\`, \`${server.maps.bluemap}\`, '3D')"
+                      data-url="${server.maps.bluemap}">
+                    3D Map
+                </span>
+            </div>
+        `;
+
+        const refs = {
+            avatar: el.querySelector('.server-avatar'),
+            typeBadge: el.querySelector('.type-badge'),
+            status: el.querySelector('.server-status'),
+            motd: el.querySelector('.motd'),
+            players: el.querySelector('.player-count'),
+            uptime: el.querySelector('.uptime'),
+            worldSize: el.querySelector('.world-size'),
+            version: el.querySelector('.version'),
+        };
+
+        return { el, refs };
+    }
+
+    // Update ONLY the dynamic fields of an already-built card. Uses textContent
+    // for all text (so a hostile MOTD can't inject HTML) and toggles `hidden`
+    // for the optional avatar / type badge instead of inserting/removing nodes.
+    function applyStatus(refs, server, status) {
+        const craftyStats = status.craftyStats || {};
+        const state = getServerState(status);
+        const typeLabel = getTypeLabel(craftyStats.type);
+
+        // Status badge: label + color class.
+        refs.status.className = `server-status ${state.cls}`;
+        refs.status.textContent = state.label;
+
+        // Type badge (e.g. "Java"); hidden when unknown.
+        if (typeLabel) {
+            refs.typeBadge.textContent = typeLabel;
+            refs.typeBadge.hidden = false;
+        } else {
+            refs.typeBadge.hidden = true;
+        }
+
+        // Crafty icon avatar. Only accept a strict base64 string, and only
+        // reassign src when it actually changes so the image never reloads.
+        const iconSrc = (craftyStats.icon && /^[A-Za-z0-9+/=]+$/.test(craftyStats.icon))
+            ? `data:image/png;base64,${craftyStats.icon}` : null;
+        if (iconSrc) {
+            if (refs.avatar.getAttribute('src') !== iconSrc) refs.avatar.src = iconSrc;
+            refs.avatar.hidden = false;
+        } else {
+            refs.avatar.removeAttribute('src');
+            refs.avatar.hidden = true;
+        }
+
+        // MOTD — textContent keeps it inert.
+        refs.motd.textContent = status.motd;
+
+        // Players.
+        refs.players.textContent = status.online
+            ? `Players: ${status.players.online}/${status.players.max}`
+            : 'Players: 0/0';
+
+        // Uptime.
+        const uptimeDisplay = status.online
+            ? (craftyStats.uptime ? formatUptime(craftyStats.uptime) : 'Unknown')
+            : 'Offline';
+        refs.uptime.textContent = `Uptime: ${uptimeDisplay}`;
+
+        // World size.
+        refs.worldSize.textContent = `Size: ${formatSize(craftyStats.worldSize)}`;
+
+        // Version (ping-derived).
+        refs.version.textContent = `Version: ${status.version ? simplifyVersion(status.version) : 'Unknown'}`;
+    }
+
     function createServerCard(server, status) {
         const escapedName = server.name.replace(/'/g, "\\'");
         const craftyStats = status.craftyStats || {};
