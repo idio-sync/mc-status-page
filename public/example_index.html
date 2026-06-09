@@ -518,32 +518,9 @@
     </div>
 
 <script>
-    const servers = [
-        
-		{
-            name: "Example 1",
-            domain: "mc.example.com",
-            port: 25565,
-			craftyId:"00000000-0000-0000-0000-000000000000",
-            image: "/images/servers/example1.jpg",
-            maps: {
-                dynmap: "https://mc.example.com/maps/survival/",
-                bluemap: "https://mc.example.com/maps/survival-3d/"
-            }
-        },
-		{
-            name: "Example 2",
-            domain: "mc2.example.com",
-            port: 25565,
-            craftyId:"00000000-0000-0000-0000-000000000000",
-			image: "/images/servers/example2.jpg",
-            maps: {
-                dynmap: "https://mc.example.com/maps/survival2/",
-                bluemap: "https://mc.example.com/maps/survival2-3d/"
-            }
-        }
-        // Add more servers as needed
-    ];
+    // Server list is loaded from /servers.json at startup (see loadServers /
+    // init at the bottom of this script). Edit servers.json — not this file.
+    let servers = [];
 
     function formatSize(bytes) {
         if (!bytes || bytes === 0) return 'Unknown';
@@ -681,11 +658,29 @@
     // reload, and the open-map highlight survives.
     function buildServerCard(server) {
         const escapedName = server.name.replace(/'/g, "\\'");
+        const maps = server.maps || {};
+
+        // Optional fields (config is hand-edited): render the image only when
+        // provided, and render each map button only when its URL exists.
+        const imageHtml = server.image
+            ? `<img src="${escapeHtml(server.image)}" alt="${escapedName}" class="server-image">`
+            : '';
+        const mapLinksHtml = `
+                ${maps.dynmap ? `<span class="map-link"
+                      onclick="showMap(\`${escapedName}\`, \`${maps.dynmap}\`, '2D')"
+                      data-url="${maps.dynmap}">
+                    2D Map
+                </span>` : ''}
+                ${maps.bluemap ? `<span class="map-link"
+                      onclick="showMap(\`${escapedName}\`, \`${maps.bluemap}\`, '3D')"
+                      data-url="${maps.bluemap}">
+                    3D Map
+                </span>` : ''}`;
 
         const el = document.createElement('div');
         el.className = 'server-card';
         el.innerHTML = `
-            <img src="${server.image}" alt="${escapedName}" class="server-image">
+            ${imageHtml}
 
             <div class="header-row">
                 <div class="server-identity">
@@ -716,17 +711,7 @@
                 <span class="version">Version: …</span>
             </div>
 
-            <div class="map-links">
-                <span class="map-link"
-                      onclick="showMap(\`${escapedName}\`, \`${server.maps.dynmap}\`, '2D')"
-                      data-url="${server.maps.dynmap}">
-                    2D Map
-                </span>
-                <span class="map-link"
-                      onclick="showMap(\`${escapedName}\`, \`${server.maps.bluemap}\`, '3D')"
-                      data-url="${server.maps.bluemap}">
-                    3D Map
-                </span>
+            <div class="map-links">${mapLinksHtml}
             </div>
         `;
 
@@ -921,11 +906,55 @@
         });
     }
 
-    // Initial update
-    updateServerStatuses();
+    // Load the server list from /servers.json (served statically from public/).
+    // no-cache so edits to servers.json appear on reload without a stale copy.
+    async function loadServers() {
+        const res = await fetch('/servers.json', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`servers.json not found (HTTP ${res.status})`);
+        const data = await res.json(); // throws on malformed JSON
+        if (!Array.isArray(data)) throw new Error('servers.json must be a JSON array');
 
-    // Update every 60 seconds
-    setInterval(updateServerStatuses, 60000);
+        // Keep only entries with the required fields; default the port.
+        return data
+            .filter(s => {
+                const ok = s && typeof s.name === 'string' && typeof s.domain === 'string';
+                if (!ok) console.warn('Skipping server entry missing name/domain:', s);
+                return ok;
+            })
+            .map(s => ({ ...s, port: s.port || 25565 }));
+    }
+
+    // Render a single friendly message into the grid instead of a blank page.
+    function showConfigError(message) {
+        const serverGrid = document.getElementById('serverGrid');
+        serverGrid.innerHTML = '';
+        const card = document.createElement('div');
+        card.className = 'server-card';
+        const heading = document.createElement('h2');
+        heading.textContent = 'Configuration error';
+        const p = document.createElement('p');
+        p.textContent = `Couldn't load server configuration: ${message} ` +
+            'Create public/servers.json (see servers.example.json).';
+        card.appendChild(heading);
+        card.appendChild(p);
+        serverGrid.appendChild(card);
+    }
+
+    async function init() {
+        try {
+            servers = await loadServers();
+        } catch (e) {
+            showConfigError(e.message);
+            return; // don't start polling with no config
+        }
+        if (servers.length === 0) {
+            showConfigError('No servers configured.');
+            return;
+        }
+        updateServerStatuses();
+        setInterval(updateServerStatuses, 60000);
+    }
+    init();
 </script>
 </body>
 </html>
