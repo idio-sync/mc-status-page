@@ -9,11 +9,11 @@ Install:
 - `CRAFTY_API_URL=crafty_url_here`
 
    (`.env` is gitignored so your real credentials are never committed.)
-4. Edit the servers array in the frontend code to add your Minecraft servers
+4. Configure your servers: copy `public/servers.example.json` to `public/servers.json` and edit it (an array of server objects: `name`, `domain`, optional `port` (default 25565), `craftyId`, `image`, and `maps.dynmap` / `maps.bluemap`). No HTML editing required. (`public/servers.json` is gitignored.)
 
 Install using Docker:
 1. `docker pull idiosync000/mc-status-page`
 2. Pass through port 80 and /app/public/
-3. Place exited index.html and images in `public` folder passed through on host
+3. Place your `index.html`, `servers.json` (copied from `servers.example.json`), and images in the `public` folder passed through on the host
 
 ![ServerStatus](https://raw.githubusercontent.com/idio-sync/mc-status-page/refs/heads/main/screenshot.png)
